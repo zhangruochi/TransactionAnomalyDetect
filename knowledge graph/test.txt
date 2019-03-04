@@ -1,0 +1,166 @@
+
+## account
+
+## --------实体部分--------
+
+
+"""
+## 交易实体
+LOAD CSV WITH HEADERS  FROM "file:///T3H_TRANS_YSB_WW_DATA_TABLE.csv" AS line
+MERGE (trans:Transaction{time:line.TR_TM,number:line.TR_NO,customerID:line.CUST_ID,customerType:line.CUST_TYPE,accountID:line.ACCT_ID,channel:line.TR_CHNL,cash:line.IS_CASH,debitCredit:line.DEBIT_CREDIT,currencyCD:line.CURR_CD,amount:line.TR_AMT,balance:line.TR_BAL_AMT,fundUse:line.FUND_USE,oppositeAccount:line.OPP_ACCT_ID,operationID:line.OPR_ID,reOperationID:line.RE_OPR_ID,ip:line.TR_IPV4})
+"""
+
+
+## 柜员实体
+LOAD CSV WITH HEADERS  FROM "file:///F_CM_KTLP_GYCSHU_DATA_TABLE.csv" AS line
+MERGE (teller:Teller{code:line.GUIYDAIH,hall:line.YNGYJIGO,attribute:line.GUIYSHUX,department:line.BUMENHAO,type:line.GUIYLXIN,class:line.GUIYJBIE})
+
+
+## 客户实体
+LOAD CSV WITH HEADERS  FROM "file:///customer_abnormal.csv" AS line
+MERGE (customer:Customer{id:line.CUST_ID,sum:line.TR_SUM,mean:line.TR_MEAN,std:line.TR_STD,count:line.TR_COUNT,blance:line.BAL_PERCENT, freq:line.TR_FREQ})
+
+
+## 营业厅实体
+LOAD CSV WITH HEADERS  FROM "file:///hall.csv" AS line
+MERGE (hall:Hall{id:line.NUM})
+
+
+## 账号实体
+LOAD CSV WITH HEADERS  FROM "file:///account.csv" AS line
+MERGE (account:Account{id:line.accountID})
+
+
+## ------关系创建部分---------
+
+
+
+## 账号与账号之间的交易关系
+
+LOAD CSV WITH HEADERS  FROM "file:///T3H_TRANS_YSB_WW_DATA_TABLE.csv" AS line
+match (from:Account{id:line.ACCT_ID}),(to:Account{id:line.OPP_ACCT_ID})
+merge (from)-[r:transaction{time:line.TR_TM,number:line.TR_NO,customer:line.CUST_ID,amount:line.TR_AMT,balance:line.TR_BAL_AMT,operationID:line.OPR_ID,reOperationID:line.RE_OPR_ID,customerType:line.CUST_TYPE}]->(to)
+
+
+## 账号与客户号之间的拥有关系
+LOAD CSV WITH HEADERS  FROM "file:///T3H_TRANS_YSB_WW_DATA_TABLE.csv" AS line
+match (from:Account{id:line.ACCT_ID}),(to:Customer{id:line.CUST_ID})
+merge (from)-[r:Have]->(to)
+
+
+## 柜员与账号之间的关系
+LOAD CSV WITH HEADERS  FROM "file:///T3H_TRANS_YSB_WW_DATA_TABLE.csv" AS line
+match (from:Teller{code:line.OPR_ID}),(to:Account{id:line.ACCT_ID})
+merge (from)-[r:OPERATION]->(to)
+
+
+## 营业应与柜员的包含关系
+MATCH (hall:Hall),(teller:Teller) where hall.id = teller.hall
+CREATE (hall)-[r:CONTAINS]->(teller) 
+RETURN hall,teller
+
+
+
+
+
+
+"""
+## 柜员与客户的操作关系
+
+MATCH (tel:Teller),(cus:Customer),(tran:Transaction) where cus.id = tran.customerID and tel.code = tran.operationID
+CREATE (tel)-[r:OPERATION]->(cus) 
+RETURN tel,cus
+
+
+
+## 客户与交易的交易关系
+MATCH (cus:Customer),(tran:Transaction) where cus.id = tran.customerID
+CREATE (cus)-[r:trade]->(tran) 
+RETURN cus,tran LIMIT 20
+
+
+## 柜员与交易的办理关系
+MATCH (tel:Teller), (tran:Transaction) where tel.code = tran.operationID
+CREATE (tel)-[r:MANAGE]->(tran) 
+RETURN tel,tran 
+"""
+
+
+
+
+
+
+
+## 请求
+MATCH (t:Teller), (a:Transaction),(c:Customer) where t.code = a.operationID and a.customerID = c.id
+CREATE (tel)-[r:MANAGE]->(tran) 
+RETURN t,a,c
+
+
+## 
+MATCH p=()-[r:OPERATION]->() RETURN p LIMIT 25
+
+
+
+http://localhost:7474/browser/
+
+
+start n = node(*)
+return n
+
+
+
+
+MATCH P1 = (()-[r1:OPERATION]->()),P2 = (()-[r2:CONTAINS]->()),P3 = (()-[r3:Have]->()),P4= (()-[r4:transaction]->()) RETURN P1 LIMIT 10,P2,P3,P4 LIMIT 25
+
+match (n)-[r:transaction]-() 
+detach delete r
+
+
+MATCH(n:City) DETACH 
+DELETE n
+
+
+
+
+
+MATCH p=()-[r:OPERATION]->()
+
+
+
+
+MATCH (t:Teller)-[r:OPERATION]->(a:Account)
+MATCH (a2:Account) WHERE a2.community = a.community and a.supervised_socre > 0.5 RETURN t,a,a2 limit 50
+
+MATCH (t:Teller)-[r:OPERATION]->(acc1:Account)
+MATCH p=(acc1:Account)-[r:transaction]->(acc2:Account) 
+return p,t order by acc1.pagerank limit 100
+
+
+
+MATCH (t:Teller)-[r:OPERATION]->(acc1:Account)
+MATCH (acc1:Account)-[trans:transaction]->(acc2:Account) 
+return t,acc1,acc2 order by acc2.pagerank limit 100
+
+
+
+MATCH ()-[r:transaction]->() SET r.amount = toInt(r.amount) RETURN r
+
+
+MATCH (n:Account {ACC_ID:"56FA1C7402343B976E626ADA16FF8C472F10754AC79CE219CD08304ABCC1C8129B0D65452F746AEC071D2D05D15F83BA0AED9D61035E425DD88C51AEC53770B514506F9C0D0A2FB6C666F491D65FBDDD"})
+CALL algo.shortestPath.deltaStepping.stream(n, 'transaction', 3.0)
+YIELD nodeId, distance
+
+RETURN algo.getNodeById(nodeId).name AS destination, distance
+
+
+
+
+MATCH (n:Account {ACCT_ID:'9D46160646AB76E69D9E4C4A676FF503659CB1B079193446A424A0F590E9CFA60CA8B28D6583293D58DFEC42743FE91A0DEC746CCDA9AC58A7D854049CE852AD3810875652BABE709F8A728349AF1824'})
+CALL algo.spanningTree.minimum('Account', 'transaction', 'amount', id(n),
+  {write:true, writeProperty:"MINST"})
+YIELD loadMillis, computeMillis, writeMillis, effectiveNodeCount
+RETURN loadMillis, computeMillis, writeMillis, effectiveNodeCount;
+
+
+
