@@ -43,7 +43,7 @@
 ![](screenshots/2.png)
 
 
-### 现场知识图谱创建
+### 知识图谱创建
 1. 在30机器上，xianchang 文件夹下，运行 jupyter notebook
 2. 打开 create_csv.ipynb 文件，从头运行到尾，生成实体和关系的所有CSV文件
     - **注意修改 save_transaction_rela 函数，新的函数在 graph_score.ipynb 文件里**
